@@ -1,0 +1,12 @@
+data_pipeline:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('DATA_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('DATA_DB_PORT', '5432') | int }}"
+      user: "{{ env_var('DATA_DB_USER', 'postgres') }}"
+      password: "{{ env_var('DATA_DB_PASSWORD', 'postgres') }}"
+      dbname: "{{ env_var('DATA_DB_NAME', 'data_pipeline') }}"
+      schema: staging
+      threads: 4

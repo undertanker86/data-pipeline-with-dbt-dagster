@@ -1,0 +1,19 @@
+select
+    snapshot_date,
+    product_id,
+    stock_on_hand,
+    units_received,
+    units_sold,
+    stockout_days,
+    days_of_supply,
+    fill_rate,
+    stockout_flag,
+    overstock_flag,
+    reorder_flag,
+    sell_through_rate,
+    product_name,
+    category,
+    segment,
+    year,
+    month
+from {{ source('raw', 'raw_inventory') }}

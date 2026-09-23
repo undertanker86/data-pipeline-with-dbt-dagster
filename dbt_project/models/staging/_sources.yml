@@ -1,0 +1,62 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: raw_customers
+        columns:
+          - name: customer_id
+            tests: [unique, not_null]
+          - name: signup_date
+            tests: [not_null]
+      - name: raw_orders
+        columns:
+          - name: order_id
+            tests: [unique, not_null]
+          - name: order_date
+            tests: [not_null]
+          - name: customer_id
+            tests: [not_null]
+      - name: raw_order_items
+        columns:
+          - name: order_id
+            tests: [not_null]
+          - name: product_id
+            tests: [not_null]
+          - name: quantity
+            tests: [not_null]
+      - name: raw_payments
+        columns:
+          - name: order_id
+            tests: [unique, not_null]
+      - name: raw_shipments
+        columns:
+          - name: order_id
+            tests: [unique, not_null]
+      - name: raw_returns
+        columns:
+          - name: return_id
+            tests: [unique, not_null]
+      - name: raw_reviews
+        columns:
+          - name: review_id
+            tests: [unique, not_null]
+      - name: raw_products
+        columns:
+          - name: product_id
+            tests: [unique, not_null]
+      - name: raw_inventory
+      - name: raw_geography
+        columns:
+          - name: zip
+            tests: [unique, not_null]
+      - name: raw_promotions
+        columns:
+          - name: promo_id
+            tests: [unique, not_null]
+      - name: raw_web_traffic
+      - name: raw_sales
+        columns:
+          - name: date
+            tests: [unique, not_null]

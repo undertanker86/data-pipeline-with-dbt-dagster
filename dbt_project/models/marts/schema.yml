@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: mart_daily_sales_features
+    description: Daily-level features with rolling window aggregates
+    columns:
+      - name: date
+        tests: [unique, not_null]
+      - name: revenue
+        tests: [not_null]
+      - name: cogs
+        tests: [not_null]
+  - name: mart_order_features
+    description: Order-item-level features for all orders
+    columns:
+      - name: order_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+      - name: quantity
+        tests: [not_null]
+  - name: mart_customer_features
+    description: Customer-level features with spend and behavior metrics
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+  - name: mart_product_features
+    description: Product-level features with sales, returns, and review metrics
+    columns:
+      - name: product_id
+        tests: [unique, not_null]
+      - name: product_name
+        tests: [not_null]

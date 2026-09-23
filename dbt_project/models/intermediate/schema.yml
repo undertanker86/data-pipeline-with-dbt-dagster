@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: int_order_fulfillment
+    description: Orders enriched with payment and shipment details
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests: [not_null]
+  - name: int_order_details
+    description: Order items enriched with product and promotion info
+    columns:
+      - name: order_id
+        tests: [not_null]
+      - name: product_id
+        tests: [not_null]
+  - name: int_customer_orders
+    description: Customers enriched with order history and geography
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+  - name: int_product_performance
+    description: Inventory snapshots enriched with return and review data
+  - name: int_daily_metrics
+    description: Daily rollup of sales, orders, and web traffic
+    columns:
+      - name: date
+        tests: [unique, not_null]
+  - name: int_return_analysis
+    description: Returns joined with order items and product info
+    columns:
+      - name: return_id
+        tests: [unique, not_null]

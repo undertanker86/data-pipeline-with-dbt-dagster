@@ -1,0 +1,10 @@
+type: dagster_dbt.DbtProjectComponent
+
+attributes:
+  project: '{{ context.project_root }}/dbt_project'
+  # int_daily_metrics/int_return_analysis/mart_daily_sales_features are
+  # incremental with a per-partition run_date var (rolling-window logic for
+  # late-arriving returns) - they need context.partition_key threaded into
+  # `dbt build --vars`, which a static YAML component can't do. They're
+  # defined separately as a partitioned @dbt_assets in dbt_incremental.py.
+  exclude: 'int_daily_metrics int_return_analysis mart_daily_sales_features'

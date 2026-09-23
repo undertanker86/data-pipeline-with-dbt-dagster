@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: Cleaned customer data from raw source
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+  - name: stg_orders
+    description: Cleaned order headers from raw source
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+  - name: stg_payments
+    description: Cleaned payment records
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+  - name: stg_shipments
+    description: Cleaned shipment records
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+  - name: stg_returns
+    description: Cleaned return records
+    columns:
+      - name: return_id
+        tests: [unique, not_null]
+  - name: stg_reviews
+    description: Cleaned review records
+    columns:
+      - name: review_id
+        tests: [unique, not_null]
+  - name: stg_products
+    description: Cleaned product catalog
+    columns:
+      - name: product_id
+        tests: [unique, not_null]
+  - name: stg_geography
+    description: Cleaned geographic reference data
+    columns:
+      - name: zip
+        tests: [unique, not_null]
+  - name: stg_promotions
+    description: Cleaned promotion reference data
+    columns:
+      - name: promo_id
+        tests: [unique, not_null]
+  - name: stg_sales
+    description: Cleaned daily sales aggregates
+    columns:
+      - name: date
+        tests: [unique, not_null]
