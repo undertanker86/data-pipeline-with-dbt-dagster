@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: data-pipeline-pg
+    environment:
+      POSTGRES_USER: ${DATA_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DATA_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DATA_DB_NAME:-data_pipeline}
+    ports:
+      - "${DATA_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATA_DB_USER:-postgres} -d ${DATA_DB_NAME:-data_pipeline}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: data-pipeline-metabase
+    # Host port 3001, not 3000 - dg dev's own webserver UI already uses 3000.
+    ports:
+      - "3001:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  metabase_data:

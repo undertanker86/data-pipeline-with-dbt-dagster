@@ -1,8 +1,10 @@
-# data_pipeline_dagster
+# data-pipeline-with-dbt-dagster
 
-Dagster orchestration for an e-commerce retail dataset: CSV → Pydantic validation → PostgreSQL (`raw` schema) → dbt (staging → intermediate → marts). Single-repo mono-repo layout — dbt project and the Pydantic/ingest package both live inside this Dagster project, matching the convention `dg scaffold defs dagster_dbt.DbtProjectComponent` itself suggests.
+Dagster orchestration for an e-commerce retail dataset: CSV → Pydantic validation → PostgreSQL (`raw` schema) → dbt (staging → intermediate → marts). Single-repo mono-repo layout — dbt project and the Pydantic/ingest package both live inside this Dagster project.
 
 ## Architecture
+
+![Architecture: Data Source → Pydantic validation → PostgreSQL ↔ dbt → Metabase → end user, orchestrated by Dagster](<imgs/archi(1).png>)
 
 ```
 [Baseline - outside Dagster, run once]
@@ -46,8 +48,6 @@ Dagster orchestration for an e-commerce retail dataset: CSV → Pydantic validat
     and a link back into the Dagster UI
 ```
 
-**Why the range starts 2013-01-01, not the dataset's actual 2012-07-04**: `web_traffic.csv` only has rows from 2013-01-01 on. Starting the whole pipeline there means every partitioned table has real data for every single day in range - no table needs to special-case "0 rows today is correct, not a bug." This drops ~6 months (Jul-Dec 2012) of otherwise-real orders/customers/sales data.
-
 **Why ingestion is split into two groups**: classic fact-vs-dimension distinction. `orders`, `returns`, etc. are events with their own date, and get replayed one day at a time via `DailyPartitionsDefinition` (so a historical backfill doesn't rescan the whole 10-year CSV on every partition - see `scripts/split_dataset_by_date.py`, which pre-splits each source file into `dataset/daily/<table>/<date>.csv` once). `products`/`geography`/`promotions`/`inventory` are reference tables with no daily grain - "which products exist on 2013-03-05" isn't a meaningful question - so they're unpartitioned and just reloaded in full. **Any job/schedule that selects assets by group must include both** `"ingestion"` and `"ingestion_dimensions"`, or dbt models downstream of the dimension tables (`stg_products`, `stg_geography`, `stg_inventory`, `mart_product_features`) silently never get built - this exact bug happened once in `schedules.py` and was fixed by changing `AssetSelection.groups("ingestion")` to `AssetSelection.groups("ingestion", "ingestion_dimensions")`.
 
 ## Project layout
@@ -72,20 +72,51 @@ data-pipeline-dagster/
       schedules.py                  daily_pipeline_job + daily schedule (default: stopped)
       sensors.py                    email-on-failure sensor
   scripts/split_dataset_by_date.py  one-time preprocessing, run before any backfill
+  imgs/archi(1).png                 architecture diagram used at the top of this README
+  docker-compose.yml                Postgres + Metabase, see Docker helpers below
   .env.example                      DB connection + SMTP env var names, no real secrets
   .env                              real values (gitignored) - not committed
 ```
 
-`data-pipeline-with-dbt-pydantic-fresh` (sibling directory) is the original standalone repo this was copied from — it's untouched and still works independently; this project no longer depends on it at runtime.
+`data-pipeline-with-dbt-pydantic` (sibling directory) is the original standalone repo this was copied from — it's untouched and still works independently; this project no longer depends on it at runtime.
+
+Not shown in the tree above - internal working notes, gitignored (except `Slide.md`, not yet added), not part of the pipeline itself: `IMPROVEMENTS.md` (design rationale + bugs found while building this, with runnable repro commands), `Slide.md` (slide-deck outline for presenting this project), `doc.txt` (early pain-point notes copied from chat). Safe to ignore if you're just running the pipeline.
 
 ## Prerequisites
 
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
-- PostgreSQL reachable at the connection string built from `DATA_DB_*` in `.env` (`packages/data_pipeline/src/data_pipeline/config.py` reads them; falls back to `localhost:5432` / db `data_pipeline` / user+password `postgres`/`postgres` if `.env` doesn't set them - which is also exactly what `.env.example` ships as the default). This project was developed against a throwaway Docker container:
-  ```bash
-  docker run -d --name data-pipeline-pg -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=data_pipeline -p 5432:5432 postgres:16
-  ```
+- PostgreSQL reachable at the connection string built from `DATA_DB_*` in `.env` (`packages/data_pipeline/src/data_pipeline/config.py` reads them; falls back to `localhost:5432` / db `data_pipeline` / user+password `postgres`/`postgres` if `.env` doesn't set them - which is also exactly what `.env.example` ships as the default). This project was developed against a throwaway Docker container - see **Docker helpers** below for the exact commands.
 - `cp .env.example .env` and fill in at least the `GMAIL_*`/`ALERT_EMAIL_TO` vars if you want the failure-email sensor active (see **Alerts** below). `DATA_DB_*` can be left at the defaults if you're using the container above.
+
+### Docker helpers
+
+`docker-compose.yml` (project root) defines both services - Postgres and Metabase (optional BI
+layer, see **Visualizing the marts** below). It reads `DATA_DB_*` straight from `.env` (Compose
+picks up a `.env` file in the same directory automatically), so there's nothing to fill in beyond
+what **Prerequisites** already asked for.
+
+First time (creates both containers + named volumes, so data survives `docker compose down`
+unless you also pass `-v`):
+```bash
+docker compose up -d
+```
+
+Every time after that:
+```bash
+docker compose start   # bring both back up
+docker compose stop    # stop both, keep data
+docker compose ps      # check status
+```
+
+Only need one of the two (e.g. skip Metabase entirely)? Target it by service name:
+```bash
+docker compose up -d postgres
+docker compose stop metabase
+```
+
+Metabase's own app data (saved questions, the admin account) now persists on a named volume
+too - it didn't before this was moved into `docker-compose.yml`, so a container recreated via
+plain `docker run`/`docker rm` used to lose that state every time.
 
 ### Local dev environment (`DAGSTER_HOME`)
 
@@ -125,6 +156,16 @@ To materialize a single partition from the CLI (no UI, runs synchronously so err
 uv run dg launch --assets "raw/raw_orders,raw/raw_sales" --partition "2013-03-05"
 ```
 `dagster job launch` submits to the run queue instead and needs a daemon (`dagster-daemon run`) to actually pick it up — `dg launch` / `dagster asset materialize` execute in-process and are simpler for local testing.
+
+## Visualizing the marts
+
+Once some partitions are materialized, [Metabase](https://www.metabase.com/) (started via **Docker helpers** above, port **3001** - not 3000, that's `dg dev`'s own UI) can build dashboards directly on top of the `marts` schema:
+
+1. Open http://localhost:3001, create the (local-only) admin account.
+2. **Add your data** → PostgreSQL → host `localhost` (or `host.docker.internal` if Metabase can't resolve `localhost` to the Postgres container from inside its own container), port `5432`, database `data_pipeline`, user/password `postgres`/`postgres`.
+3. `marts` schema → `mart_customer_features`, `mart_order_features`, `mart_product_features`, `mart_daily_sales_features` are all there, ready to chart.
+
+Metabase only reads - it doesn't touch the Dagster code, the `raw` schema, or anything else in this project.
 
 ## Alerts
 
@@ -166,9 +207,6 @@ Rejected-row details (row number, field, error type, message - up to 25 per part
 
   `mart_daily_sales_features` specifically reprocesses a **rolling 45-day window** (not just the current day) on every run, because its `daily_returns` CTE groups by `order_date`, and a return can land 5-31 days after the order (measured from the data, median 18d, p90 26d). Without the rolling window, a late return would never make it back into the return_count of the day its order was placed, and the `revenue_7d_avg`/`revenue_30d_avg` window functions wouldn't have enough trailing rows in the incremental batch either. Verified end-to-end through a real Dagster run: `int_daily_metrics` → 1 row inserted (single day), `mart_daily_sales_features` → 46 rows inserted (the rolling window), all dbt tests passing.
 
-  `dbt_project` has no `packages.yml`/`dbt_utils` dependency (removed — nothing in the models uses it anymore since the upstream fix replaced `dbt_utils.datediff()` with plain date subtraction). Keep it that way: an unused package dependency previously caused every concurrent Dagster subprocess to race on `dbt deps` against the same lock file and time out.
-
-## Known data quality notes (source data, not pipeline bugs)
+## Known data notes
 
 - **`mart_customer_features.days_to_first_order` can be negative.** Confirmed directly against the raw CSVs (not a bug introduced anywhere in this pipeline): `signup_date` and `order_date` appear to be generated independently in the source dataset, so a customer's first recorded order can predate their recorded signup by weeks. Not yet fixed/flagged — pick one: leave as-is, add a dbt test that flags it without changing values, or null it out in the mart. Discuss before changing mart output.
-- Enum values, decimal precision, and the `sales.csv` header casing were all fixed upstream in `data-pipeline-with-dbt-pydantic-fresh` (commit `884b288`) and carried over here — ingest is currently 100% clean (0 rows rejected) across all 13 tables for the 2013+ range.

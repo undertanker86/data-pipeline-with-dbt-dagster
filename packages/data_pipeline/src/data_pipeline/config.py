@@ -32,3 +32,4 @@ TABLE_REGISTRY = {
     "web_traffic": "WebTrafficRow",
     "sales": "SalesRow",
 }
+
