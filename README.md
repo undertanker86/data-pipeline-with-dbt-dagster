@@ -32,4 +32,3 @@ Copy `.env.example` → `.env` and fill in `GMAIL_*`/`ALERT_EMAIL_TO` to enable 
 - **Baseline cutover**: 2013-01-01 → 2013-02-28 loaded once outside Dagster; Dagster takes over daily partitions from 2013-03-01 onward (dataset actually starts 2012-07-04, but `web_traffic.csv` only from 2013-01-01, so the managed range starts there to avoid every table needing a "0 rows today is correct" special case).
 - **Visualizing marts**: Metabase at `http://localhost:3001` (port 3001, not 3000 - that's `dg dev`'s UI), point it at Postgres `data_pipeline` / schema `marts`.
 
-Full design rationale, every bug hit while building this (with runnable repro commands), and the reasoning behind each decision above: `README_OLD.md` (kept locally, gitignored - not meant to be re-read cold, more a build log).
